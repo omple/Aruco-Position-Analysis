@@ -1,9 +1,12 @@
 #include <M5StickCPlus.h>
 #include <Dynamixel2Arduino.h>
+#include <Bluepad32.h>
 
 
 #define RS485_RX 26
 #define RS485_TX 0
+
+#define MAX_RPM 29
 
 #define DXL_SERIAL Serial2
 
@@ -16,6 +19,16 @@ const float   DXL_PROTOCOL_VERSION = 2.0;
 const uint32_t DXL_BAUD = 57600;   // set to your motor's baud
 
 Dynamixel2Arduino dxl(DXL_SERIAL);
+GamepadPtr myGamepad = nullptr;
+
+void onConnectedGamepad(GamepadPtr gp) {
+  myGamepad = gp;
+}
+
+void onDisconnectedGamepad(GamepadPtr gp) {
+  if (myGamepad == gp) myGamepad = nullptr;
+}
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -24,6 +37,9 @@ void setup() {
   M5.Lcd.setRotation(3);
   M5.Lcd.setCursor(0, 0, 2);
   M5.Lcd.println("Dynamixel Code Demo 2");
+
+  // setup bluetooth
+  BP32.setup(&onConnectedGamepad, &onDisconnectedGamepad);
 
   // Initialize RS485 UART on Serial2
   Serial2.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);  
@@ -44,22 +60,78 @@ void setup() {
   dxl.torqueOff(DXL_ID_2);
   dxl.setOperatingMode(DXL_ID_2, OP_VELOCITY);
   dxl.torqueOn(DXL_ID_2);
+
+  dxl.torqueOff(DXL_ID_3);
+  dxl.setOperatingMode(DXL_ID_3, OP_VELOCITY);
+  dxl.torqueOn(DXL_ID_3);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   M5.update();
+  BP32.update();
+
+  
+  int lastLx = 0, lastLy = 0;
+  if (myGamepad && myGamepad->isConnected()) {
+    int lx = myGamepad->axisX();
+    int ly = myGamepad->axisY();
+    bool btnX = myGamepad->x();
+    bool btnO = myGamepad->b();
+
+    int lxNew = map(lx,-512,512,-1000,1000);
+    int lyNew = map(ly,-512,512,1000,-1000);
+
+    float R = sqrt(lxNew*lxNew + lyNew*lyNew) * .704;
+    float angleRad = atan2(lyNew,lxNew);
+    float angle = angleRad / PI * 180;
+
+    float M1 = 0, M2 = 0,M3 = 0;
+    if(abs(R) > 50){
+      if((angle < 180 && angle > 90) || (angle > -180 && angle < -135)){
+        M1 = R * sin(angleRad) - R * cos(angleRad) * tan(-7*PI/4);
+        M3 = R * cos(angleRad) / cos(-7*PI/4);
+      }else if (angle < -45 && angle > -135){
+        M2 = (R * sin(angleRad)- R * cos(angleRad) * tan(-7*PI/4)) / (sin(-1*PI/4) - cos(-1*PI/4) * tan(-7*PI/4));
+        M3 = ( R *sin(angleRad)- R * cos(angleRad) * tan(-1*PI/4)) / (sin(-7*PI/4) - cos(-7*PI/4) * tan(-1*PI/4));
+      }else{
+        M1 = R * sin(angleRad) - R * cos(angleRad) * tan(-1*PI/4);
+        M2 = R * cos(angleRad) / cos(-1*PI/4);
+      }
+    }
+
+    M1 = abs(M1);
+    M2 = abs(M2);
+    M3 = abs(M3);
+    
+    dxl.setGoalVelocity(DXL_ID_1, M1 * MAX_RPM / 1000.0, UNIT_RPM);
+    dxl.setGoalVelocity(DXL_ID_2, M2 * MAX_RPM / 1000.0, UNIT_RPM);
+    dxl.setGoalVelocity(DXL_ID_3, M3 * MAX_RPM / 1000.0, UNIT_RPM);
+    
+
+    
+    if (lx != lastLx || ly != lastLy) {
+      M5.Lcd.fillScreen(BLACK);
+      M5.Lcd.setCursor(0, 0, 2); 
+      M5.Lcd.printf(" LX: %4d\n", lxNew);
+      M5.Lcd.printf(" LY: %4d\n", lyNew);
+      M5.Lcd.printf(" R: %4f\n", R);
+      M5.Lcd.printf(" Angle: %4f\n", angle);
+      M5.Lcd.printf(" M1: %4f\n", M1);
+      M5.Lcd.printf(" M2: %4f\n", M2);
+      M5.Lcd.printf(" M3: %4f\n", M3);
+    }
+    lastLx = lx;
+    lastLy = ly;
+    delay(20);
+  } else {
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setCursor(0, 0, 2);
+    M5.Lcd.println(" No gamepad");
+    delay(400);
+  }
 
   /*
-  if(M5.BtnA.isPressed()){
-    dxl.setGoalVelocity(DXL_ID_1, 29, UNIT_RPM);
-  }else{
-    dxl.setGoalVelocity(DXL_ID_1, 0, UNIT_RPM);
-  }
-  */
-
-  float M1 = 0, M2 = 0,M3 = 0;
-  
   if(Serial.available() > 0){
     // read velocity from 0-100 and angle from 0-360
     int R = Serial.parseInt();
@@ -79,4 +151,9 @@ void loop() {
       M2 = R * cos(angleRad) / cos(-1*PI/4);
     }
   }
+    */
+
+
+  
+
 }
