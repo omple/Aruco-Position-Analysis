@@ -32,7 +32,7 @@ def load_calibration(path):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--calib', '-c', default='CameraCalibration/calibration.npz', help='path to calibration .npz')
-    p.add_argument('--camera', type=int, default=0)
+    p.add_argument('--camera', type=int, default=1)
     p.add_argument('--marker-cm', type=float, default=5.0, help='physical marker side length in cm')
     args = p.parse_args()
 
