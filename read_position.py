@@ -30,6 +30,8 @@ def load_calibration(path):
 
 
 def main():
+
+    mouseX, mouseY = 0.0, 0.0
     p = argparse.ArgumentParser()
     p.add_argument('--calib', '-c', default='CameraCalibration/calibration.npz', help='path to calibration .npz')
     p.add_argument('--camera', type=int, default=1)
@@ -68,6 +70,9 @@ def main():
         if ids is not None:
             rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, marker_length_m, camera_matrix, dist_coeffs)
             for i, marker_id in enumerate(ids.flatten()):
+                # only process marker ID 20
+                if int(marker_id) != 20:
+                    continue
                 # ensure corner array shape (4,2)
                 c = corners[i]
                 if c is None:
@@ -104,7 +109,12 @@ def main():
                 pitch_deg = np.degrees(ry)
                 yaw_deg = np.degrees(rz)
 
+                txt = f'ID:{int(marker_id)} D:{dist_cm:.1f}cm OffX:{dx_cm:.1f}cm OffY:{dy_cm:.1f}cm\nMouseX:{mouseX:.1f} MouseY:{mouseY:.1f}'
+                cv2.putText(frame, txt, (int(u) - 100, int(v) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                """
                 # display on frame
+                
                 cv2.aruco.drawDetectedMarkers(frame, [corners[i]])
                 cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs[i], tvecs[i], marker_length_m * 0.5)
 
@@ -115,6 +125,7 @@ def main():
                 cv2.putText(frame, txt_rot, (int(u) - 100, int(v) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
                 print(f'{int(marker_id)} {dist_cm:.1f}cm dx={dx_cm:.1f}cm dy={dy_cm:.1f}cm')
+                """
 
         cv2.imshow('aruco', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
